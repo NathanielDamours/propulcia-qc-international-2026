@@ -1,0 +1,1 @@
+Les données de démonstration sont maintenues dans `src/data.ts`. Le dossier `Données/` du projet est strictement exclu de toute lecture et de toute intégration. Les futures données publiques validées pourront être ajoutées dans un module distinct.
