@@ -1,38 +1,259 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { ArrowRight, CalendarDays, Check, ChevronRight, Compass, Heart, MapPin, Menu, Plus, Search, ShieldCheck, Sparkles, Users, X } from 'lucide-react';
-import { Badge, EmptyState, SectionTitle } from './components';
-import { EventItem, initialEvents, initialUpdates, interests, places, Interest, Category, Update, CleanlinessReport } from './data';
-import { CollaborationsPage } from './collaborations';
-import 'leaflet/dist/leaflet.css';
+import { ReactNode, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Map as MapIcon, Route, SquareParking, CalendarDays, Users, Store, Handshake, TriangleAlert, LayoutDashboard, Layers, LocateFixed, Compass, Box,
+  Bus, Moon, Sun, SunMoon, RefreshCw, LogOut, Info, X, Lightbulb, MapPin,
+} from 'lucide-react';
+import { MapView, useMap } from './map/MapView';
+import { MapLayers } from './map/MapLayers';
+import { Profile, Tab, isNight, useApp, useUI } from './lib/store';
+import { ProfilePicker, PROFILES } from './screens/ProfilePicker';
+import { ExploreSheet, SearchBar } from './screens/Explore';
+import { RouteHeader, RouteSheet } from './screens/RoutePlanner';
+import { ParkingSheet } from './screens/ParkingSheet';
+import { EventDetailPage, EventsPage, PublishEventModal } from './screens/Events';
+import { GroupDetailPage, GroupsPage } from './screens/Groups';
+import { AnnoncePage, ChatPage, CollabsPage, DirectoryPage, NewAnnonceModal, PlacePage, ProposeModal } from './screens/Business';
+import { AdminPage, ReportSheet } from './screens/Reports';
+import { Toast } from './components/ui';
+import { ME, GRID_ANGLE } from './lib/geo';
 
-const center:[number,number] = [46.8162,-71.218];
-const iconFor=(color:string,symbol=color==='#446bb3'?'⚒':'')=>L.divIcon({className:'custom-marker',html:`<span style="background:${color}">${symbol}</span>`,iconSize:[24,24],iconAnchor:[12,12]});
-const selectedIconFor=(color:string,symbol=color==='#446bb3'?'⚒':'')=>L.divIcon({className:'custom-marker selected-marker',html:`<span style="background:${color}">${symbol}</span>`,iconSize:[34,34],iconAnchor:[17,17]});
-const colors:Record<string,string>={Gastronomie:'#e9794d','Culture & loisirs':'#7357a6','Communauté':'#278c80','Commerce':'#d4a338','Stationnement':'#66758a','Municipal':'#446bb3'};
-const mapUpdates=initialUpdates.map(u=>({id:u.id,name:u.title,description:u.description,category:'Municipal' as Category,address:`${u.type} · ${u.date}`,lat:u.lat,lng:u.lng,tag:`Travaux · ${u.status}`}));
+const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
+  carte: { label: 'Carte', icon: <MapIcon size={22} /> },
+  trajets: { label: 'Trajets', icon: <Route size={22} /> },
+  parking: { label: 'Parking', icon: <SquareParking size={22} /> },
+  evenements: { label: 'Événements', icon: <CalendarDays size={22} /> },
+  groupes: { label: 'Groupes', icon: <Users size={22} /> },
+  annuaire: { label: 'Annuaire', icon: <Store size={22} /> },
+  collabs: { label: 'Collabs', icon: <Handshake size={22} /> },
+  signaler: { label: 'Signaler', icon: <TriangleAlert size={22} /> },
+  admin: { label: 'Gestion', icon: <LayoutDashboard size={22} /> },
+};
 
-function MapSelection({place}:{place?:{lat:number;lng:number;name:string;category:string;tag:string;description:string;address:string}}){const map=useMap();useEffect(()=>{if(!place)return;map.flyTo([place.lat,place.lng],17,{duration:.7});L.popup({closeButton:true}).setLatLng([place.lat,place.lng]).setContent(`<strong>${place.name}</strong><br/><span class="map-category">${place.category} · ${place.tag}</span><p>${place.description}</p><small>${place.address}</small><br/><a class="map-route" target="_blank" rel="noreferrer" href="https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}">Itinéraire →</a>`).openOn(map)},[map,place]);return null}
+export const TABS: Record<Profile, Tab[]> = {
+  citoyen: ['carte', 'evenements', 'groupes', 'signaler'],
+  entreprise: ['carte', 'annuaire', 'collabs', 'evenements', 'signaler'],
+  ville: ['carte', 'admin', 'signaler', 'evenements'],
+};
 
-function App(){const [role,setRole]=useState<string|null>(()=>localStorage.getItem('demo-role'));if(!role)return <RoleSelection onSelect={selected=>{localStorage.setItem('demo-role',selected);setRole(selected);window.location.href='/profil'}}/>;return <BrowserRouter><AppShell/><Routes><Route path="/" element={<Home/>}/><Route path="/profil" element={<ProfileHome/>}/><Route path="/explorer" element={<Explorer/>}/><Route path="/evenements" element={<Events/>}/><Route path="/communaute" element={<Community/>}/><Route path="/mon-saint-roch" element={<MySaintRoch/>}/><Route path="/jobs" element={<JobsPage/>}/><Route path="/stationnement" element={<ParkingPage/>}/><Route path="/collaborer" element={<CollaborationsPage/>}/><Route path="/signaler" element={<ReportPage/>}/><Route path="/tableau-de-bord/commerce" element={<BusinessDashboard/>}/><Route path="/tableau-de-bord/ville" element={<MunicipalDashboard/>}/></Routes></BrowserRouter>}
-function RoleSelection({onSelect}:{onSelect:(role:string)=>void}){const roles=[['tourist','Je suis touriste','Explorer les lieux, les événements et les expériences à ne pas manquer.','✦'],['citizen','Je suis étudiant·e / citoyen·ne','Participer à la vie du quartier, rencontrer des voisins et s’impliquer.','♥'],['business','Je représente une entreprise ou un organisme','Faire connaître mes activités, mes événements et mes initiatives.','↗'],['city','Je représente la Ville','Partager les nouvelles, les travaux et les projets du quartier.','⌂']];return <main className="role-selection"><div className="role-brand"><span className="brand-mark">✦</span><span>Saint-Roch <b>Connect</b></span></div><div className="role-content"><div className="role-intro"><Badge tone="orange">Bienvenue dans le quartier</Badge><h1>Comment voulez-vous<br/><em>vivre Saint-Roch ?</em></h1><p>Choisissez votre profil pour découvrir une expérience adaptée à vos besoins.</p></div><div className="role-grid">{roles.map(([id,title,description,icon])=><button className="role-card" key={id} onClick={()=>onSelect(id)}><span className="role-icon">{icon}</span><span><strong>{title}</strong><small>{description}</small><em>Commencer <ArrowRight size={15}/></em></span></button>)}</div><p className="role-disclaimer"><ShieldCheck size={14}/> Sélection de démonstration — ce n’est pas un système d’authentification.</p></div></main>}
-function AppShell(){const [menu,setMenu]=useState(false);const role=localStorage.getItem('demo-role');function changeProfile(){localStorage.removeItem('demo-role');window.location.href='/'}const links=role==='business'?[['/profil','Accueil partenaire'],['/collaborer','Collaborations'],['/tableau-de-bord/commerce','Mes publications'],['/explorer','Entreprises du quartier']]:role==='city'?[['/profil','Accueil Ville'],['/tableau-de-bord/ville','Gérer les données'],['/explorer','Voir la carte']]:role==='citizen'?[['/profil','Mon accueil'],['/explorer','Explorer'],['/evenements','Événements'],['/stationnement','Stationnement'],['/communaute','Communauté'],['/jobs','Jobs locaux']]:[['/profil','Mon accueil'],['/explorer','La carte'],['/evenements','Événements'],['/stationnement','Stationnement'],['/communaute','Communauté']];return <><header className="nav"><Link to="/profil" className="brand"><span className="brand-mark">✦</span><span>Saint-Roch <b>Connect</b></span></Link><button className="menu-btn" onClick={()=>setMenu(!menu)} aria-label="Ouvrir le menu"><Menu size={22}/></button><nav className={menu?'nav-links open':'nav-links'}>{links.map(([to,label])=><NavLink key={to} to={to} onClick={()=>setMenu(false)}>{label}</NavLink>)}{role!=='city'&&<NavLink to="/signaler" className="report-nav" onClick={()=>setMenu(false)}><MapPin size={15}/> Signaler</NavLink>}{role==='city'&&<Link to="/tableau-de-bord/ville" className="nav-demo">Tableau de bord <ChevronRight size={15}/></Link>}<button className="profile-switch" onClick={changeProfile}>Changer de profil</button></nav></header></>}
-function Page({children,wide=false}:{children:React.ReactNode;wide?:boolean}){return <main className={wide?'page wide':'page'}>{children}</main>}
-function ProfileHome(){const role=localStorage.getItem('demo-role');const config=role==='tourist'?{eyebrow:'Bienvenue à Québec',title:'Vivez Saint-Roch\ncomme un local.',text:'Les meilleurs événements, lieux et expériences du quartier réunis pour votre visite.',primary:['Explorer la carte','/explorer'],secondary:['Voir les événements','/evenements'],tone:'orange'}:role==='citizen'?{eyebrow:'Votre quartier, votre voix',title:'Participez à la vie\nde Saint-Roch.',text:'Trouvez un emploi local, découvrez les événements et contribuez aux initiatives près de chez vous.',primary:['Trouver un emploi','/jobs'],secondary:['Voir les événements','/evenements'],tone:'green'}:role==='business'?{eyebrow:'Votre espace partenaire',title:'Faites rayonner\nvos initiatives.',text:'Publiez vos événements, présentez votre entreprise et rencontrez les autres acteurs du quartier.',primary:['Gérer mes publications','/tableau-de-bord/commerce'],secondary:['Découvrir les entreprises','/explorer'],tone:'blue'}:{eyebrow:'Espace Ville',title:'Un quartier mieux\ninformé et connecté.',text:'Ajoutez les nouvelles, travaux et aménagements pour informer les citoyens en temps réel.',primary:['Gérer les données','/tableau-de-bord/ville'],secondary:['Voir la carte','/explorer'],tone:'blue'};return <Page><section className="profile-hero"><div><Badge tone={config.tone as 'orange'|'green'|'blue'}>{config.eyebrow}</Badge><h1>{config.title.split('\n').map((line,i)=><span key={line}>{i>0&&<br/>}{i===1?<em>{line}</em>:line}</span>)}</h1><p>{config.text}</p><div className="hero-actions"><Link className="button primary" to={config.primary[1]}>{config.primary[0]} <ArrowRight size={17}/></Link><Link className="button ghost" to={config.secondary[1]}>{config.secondary[0]}</Link></div></div><div className="hero-art profile-art"><div className="sun"></div><div className="hero-card"><div className="mini-map"><span className="road r1"></span><span className="road r2"></span><span className="map-pin p-a">✦</span><span className="map-pin p-b">●</span><span className="map-pin p-c">♥</span></div><div className="hero-card-bottom"><div><small>À découvrir aujourd’hui</small><strong>Le Grand Marché</strong></div><Badge tone="green">Ouvert</Badge></div></div><div className="float-note note-one"><Sparkles size={15}/><span><b>12 nouvelles</b><br/>activités cette semaine</span></div><div className="float-note note-two"><Heart size={15} fill="currentColor"/><span>Les acteurs locaux<br/><b>se connectent ici</b></span></div></div></section>{role==='citizen'?<section className="profile-section"><SectionTitle eyebrow="Pour vous" title="Votre Saint-Roch aujourd’hui"/><div className="quick-grid"><Link to="/jobs" className="quick-card green"><Users/><b>Jobs locaux</b><span>Des opportunités près de chez vous</span><ArrowRight size={15}/></Link><Link to="/evenements" className="quick-card orange"><CalendarDays/><b>Événements à venir</b><span>{initialEvents.length} rendez-vous cette semaine</span><ArrowRight size={15}/></Link><Link to="/communaute" className="quick-card purple"><Heart/><b>Initiatives solidaires</b><span>Donner un coup de main</span><ArrowRight size={15}/></Link></div></section>:role==='business'?<section className="profile-section"><SectionTitle eyebrow="Réseau local" title="Les acteurs près de vous"/><div className="place-grid">{places.map(p=><PlaceCard key={p.id} place={p}/>)}</div></section>:<section className="profile-section"><SectionTitle eyebrow="À découvrir" title={role==='city'?'Les dernières publications':'Les incontournables du quartier'} action={<Link className="text-link" to={role==='city'?'/tableau-de-bord/ville':'/evenements'}>Tout voir <ArrowRight size={15}/></Link>}/><div className="event-grid">{initialEvents.map(e=><EventCard key={e.id} event={e}/>)}</div></section>}<section className="connect-cta"><div><p className="eyebrow">Le moteur du quartier</p><h2>Saint-Roch se propulse<br/><em>quand on se connecte.</em></h2><p>Une place commune pour faire connaître les événements, collaborer entre entreprises et donner envie de venir dans le quartier.</p></div><div className="connect-actions"><Link className="button primary" to="/evenements">Découvrir les événements <ArrowRight size={16}/></Link><Link className="button ghost" to="/tableau-de-bord/commerce">Publier une activité</Link></div></section></Page>}
-function JobsPage(){const jobs=[['Barista — Café du coin','Temps partiel · 18 $/h','Gastronomie'],['Adjoint·e aux événements','Temps plein · 22 $/h','Culture'],['Animateur·rice communautaire','Contrat · 25 h/semaine','Communauté']];return <Page><div className="page-intro"><div><p className="eyebrow">Opportunités locales</p><h1>Les jobs de Saint-Roch</h1><p>Trouvez une occasion de travailler près de votre quartier.</p></div><Badge tone="green">Données fictives</Badge></div><div className="jobs-list">{jobs.map(([title,meta,category])=><article className="job-card" key={title}><div className="job-icon">↗</div><div><Badge tone="green">{category}</Badge><h2>{title}</h2><p>{meta}</p><small>Publié par une organisation locale · Offre de démonstration</small></div><button className="button secondary">Voir l’offre <ArrowRight size={15}/></button></article>)}</div></Page>}
-function ParkingPage(){return <Page><div className="page-intro"><div><p className="eyebrow">Se déplacer facilement</p><h1>Stationnement à Saint-Roch</h1><p>Trouvez un stationnement pratique pour vos sorties, vos achats et vos événements.</p></div><Link to="/explorer" className="button primary"><MapPin size={17}/> Voir sur la carte</Link></div><div className="parking-notice"><MapPin size={18}/><span><b>Informations de démonstration</b><br/>Les disponibilités et tarifs devront être connectés à une source publique validée avant la mise en production.</span></div><div className="parking-list">{places.filter(p=>p.category==='Stationnement').map(place=><article className="parking-card" key={place.id}><div className="parking-icon"><MapPin size={23}/></div><div><Badge tone="blue">Stationnement</Badge><h2>{place.name}</h2><p>{place.description}</p><span className="parking-address"><MapPin size={14}/>{place.address}</span></div><a className="button secondary" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=18/${place.lat}/${place.lng}`}>Itinéraire <ArrowRight size={15}/></a></article>)}</div></Page>}
-function Home(){return <Page><section className="hero"><div className="hero-copy"><Badge tone="orange">Le quartier se réinvente</Badge><h1>Saint-Roch,<br/><em>ça se vit ensemble.</em></h1><p className="hero-text">Découvrez les personnes, les idées et les endroits qui font battre le cœur du quartier. Une plateforme pour se retrouver, participer et faire grandir Saint-Roch.</p><div className="hero-actions"><Link className="button primary" to="/explorer">Explorer le quartier <ArrowRight size={17}/></Link><Link className="button ghost" to="/evenements">Voir les événements</Link></div><div className="hero-proof"><div className="avatar-stack"><span>ML</span><span>JR</span><span>+</span></div><span>Déjà une communauté<br/><b>qui se rassemble</b></span></div></div><div className="hero-art"><div className="sun"></div><div className="hero-card"><div className="mini-map"><span className="road r1"></span><span className="road r2"></span><span className="map-pin p-a">✦</span><span className="map-pin p-b">●</span><span className="map-pin p-c">♥</span></div><div className="hero-card-bottom"><div><small>À découvrir aujourd’hui</small><strong>Le Grand Marché</strong></div><Badge tone="green">Ouvert</Badge></div></div><div className="float-note note-one"><Sparkles size={15}/><span><b>12 nouvelles</b><br/>initiatives cette semaine</span></div><div className="float-note note-two"><Heart size={15} fill="currentColor"/><span>Votre quartier<br/><b>vous attend</b></span></div></div></section><section className="home-section"><SectionTitle eyebrow="À ne pas manquer" title="Les rendez-vous du quartier" action={<Link className="text-link" to="/evenements">Tout voir <ArrowRight size={15}/></Link>}/><div className="event-grid">{initialEvents.slice(0,3).map(e=><EventCard key={e.id} event={e}/>)}</div></section><section className="home-section discover"><SectionTitle eyebrow="Faire connaissance" title="Des lieux qui créent du lien"/><div className="place-grid">{places.map(p=><PlaceCard key={p.id} place={p}/>)}</div></section><section className="mission"><div className="mission-icon"><Users/></div><div><p className="eyebrow">Notre intention</p><h2>Plus qu’une carte,<br/><em>un point de rencontre.</em></h2></div><p>Saint-Roch Connect rassemble les initiatives locales au même endroit pour rendre la participation citoyenne plus simple, plus visible et plus humaine.</p></section><Footer/></Page>}
-function EventCard({event,onDelete}:{event:EventItem;onDelete?:()=>void}){const [fav,setFav]=useState(()=>JSON.parse(localStorage.getItem('favorites')||'[]').includes(event.id));const [going,setGoing]=useState(()=>JSON.parse(localStorage.getItem('going')||'[]').includes(event.id));function toggle(key:string,value:boolean){const list=JSON.parse(localStorage.getItem(key)||'[]');localStorage.setItem(key,JSON.stringify(value?[...new Set([...list,event.id])]:list.filter((id:string)=>id!==event.id)));}return <article className="event-card"><div className="event-date"><b>{new Date(event.date+'T12:00').toLocaleDateString('fr-CA',{day:'2-digit'})}</b><span>{new Date(event.date+'T12:00').toLocaleDateString('fr-CA',{month:'short'}).replace('.','')}</span></div><div className="event-body"><div className="card-top"><Badge tone={event.free?'green':'default'}>{event.category}</Badge><button className={fav?'icon-btn active':'icon-btn'} onClick={()=>{setFav(!fav);toggle('favorites',!fav)}} aria-label="Ajouter aux favoris"><Heart size={18} fill={fav?'currentColor':'none'}/></button></div><h3>{event.title}</h3><p>{event.description}</p><div className="event-meta"><span><CalendarDays size={14}/>{event.time}</span><span><MapPin size={14}/>{event.place}</span></div><div className="card-bottom"><strong className={event.free?'free':''}>{event.price}</strong><button className={going?'small-button selected':'small-button'} onClick={()=>{setGoing(!going);toggle('going',!going)}}>{going?<><Check size={14}/> Je participe</>: 'Je participe'}</button>{onDelete&&<button className="delete-link" onClick={onDelete}>Supprimer</button>}</div></div></article>}
-function PlaceCard({place}:{place:typeof places[number]}){return <Link to="/explorer" className="place-card"><div className="place-photo" style={{background:`linear-gradient(145deg, ${colors[place.category]}55, #1f293744)`}}><span className="photo-symbol">{place.category==='Gastronomie'?'☕':place.category==='Culture & loisirs'?'✎':place.category==='Communauté'?'♥':place.category==='Stationnement'?'P':'✦'}</span><Badge tone="default">{place.tag}</Badge></div><div className="place-info"><h3>{place.name}</h3><p>{place.address}</p><span className="text-link">Découvrir <ArrowRight size={14}/></span></div></Link>}
-function Explorer(){const [query,setQuery]=useState('');const [filter,setFilter]=useState<'Tous'|Category>('Tous');const [selected,setSelected]=useState<string>();const [location,setLocation]=useState(false);const all=useMemo(()=>[...places,...mapUpdates,...initialEvents.map(e=>({id:e.id,name:e.title,description:e.description,category:e.category,address:e.place,lat:e.lat,lng:e.lng,tag:'Événement'}))],[]);const filtered=all.filter(x=>(filter==='Tous'||x.category===filter)&&(`${x.name} ${x.description} ${x.address}`.toLowerCase().includes(query.toLowerCase())));const selectedPlace=filtered.find(x=>x.id===selected);return <Page wide><div className="explore-head"><div><p className="eyebrow">Le cœur du quartier</p><h1>Explorer Saint-Roch</h1><p>Tout ce qui se passe, au même endroit.</p></div><button className={location?'button secondary':'button ghost'} onClick={()=>setLocation(!location)}><Compass size={17}/>{location?'Position activée':'Me localiser'}</button></div><div className="explore-layout"><aside className="explore-panel"><div className="search"><Search size={18}/><input aria-label="Rechercher" placeholder="Rechercher un lieu, une activité…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button onClick={()=>setQuery('')}><X size={16}/></button>}</div><div className="filter-scroll">{['Tous','Gastronomie','Culture & loisirs','Communauté','Commerce','Stationnement','Municipal'].map(x=><button key={x} className={filter===x?'filter active':'filter'} onClick={()=>setFilter(x as typeof filter)}>{x}</button>)}</div><div className="results-head"><span><b>{filtered.length}</b> découvertes</span><span className="muted">À proximité</span></div><div className="result-list">{filtered.map(x=><button className={selected===x.id?'result selected':'result'} key={x.id} onClick={()=>setSelected(x.id)}><span className="result-dot" style={{background:colors[x.category]}}></span><span><b>{x.name}</b><small>{x.category} · {x.address}</small></span><ChevronRight size={16}/></button>)}</div></aside><div className="map-wrap"><MapContainer center={center} zoom={15} scrollWheelZoom><TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/><MapSelection place={selectedPlace}/>{filtered.map(x=><Marker key={x.id} position={[x.lat,x.lng]} icon={selected===x.id?selectedIconFor(colors[x.category]):iconFor(colors[x.category])} eventHandlers={{click:()=>setSelected(x.id)}}><Popup><strong>{x.name}</strong><br/><span className="map-category">{x.category} · {x.tag}</span><br/><small>{x.description}</small><br/><small>{x.address}</small><br/><a className="map-route" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/dir/?api=1&destination=${x.lat},${x.lng}`}>Itinéraire →</a></Popup></Marker>)}</MapContainer><div className="map-legend"><b>Légende</b>{Object.entries(colors).map(([x,c])=><span key={x}><i style={{background:c}}></i>{x}</span>)}</div></div></div><p className="demo-note"><ShieldCheck size={15}/> Les lieux et annonces de cette carte sont des données fictives de démonstration. Les fonds de carte proviennent d’OpenStreetMap.</p></Page>}
-function Events(){const [onlyFree,setOnlyFree]=useState(false);const [cat,setCat]=useState('Tous');const [events,setEvents]=useState<EventItem[]>(()=>{const saved=localStorage.getItem('demo-events');return saved?JSON.parse(saved):initialEvents});const filtered=events.filter(e=>(!onlyFree||e.free)&& (cat==='Tous'||e.category===cat));return <Page><div className="page-intro"><div><p className="eyebrow">Le calendrier local</p><h1>Les événements</h1><p>Des occasions de se retrouver, d’apprendre et de célébrer.</p></div><Link to="/explorer" className="button primary">Voir la carte <MapPin size={17}/></Link></div><div className="toolbar"><div className="toolbar-filters">{['Tous','Gastronomie','Culture & loisirs','Communauté','Commerce'].map(x=><button className={cat===x?'filter active':'filter'} key={x} onClick={()=>setCat(x)}>{x}</button>)}</div><label className="check"><input type="checkbox" checked={onlyFree} onChange={e=>setOnlyFree(e.target.checked)}/> Gratuit seulement</label></div><div className="event-list">{filtered.length?filtered.map(e=><EventCard key={e.id} event={e}/>):<EmptyState title="Aucun événement trouvé" description="Essayez de modifier vos filtres."/>}</div></Page>}
-function Community(){const demoGroups=[{id:'demo-g1',name:'Voisins solidaires de Saint-Roch',description:'Un espace pour partager des coups de main et les bonnes nouvelles du quartier.',topic:'Entraide',members:24,createdBy:false},{id:'demo-g2',name:'Passionnés de culture locale',description:'Sorties, découvertes et discussions autour des lieux culturels de Saint-Roch.',topic:'Culture',members:18,createdBy:false}];const [groups,setGroups]=useState<{id:string;name:string;description:string;topic:string;members:number;createdBy:boolean}[]>(()=>{try{return JSON.parse(localStorage.getItem('community-groups')||'[]')}catch{return []}});const [showCreate,setShowCreate]=useState(false);function createGroup(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=new FormData(e.currentTarget);const group={id:`group-${Date.now()}`,name:String(form.get('name')),description:String(form.get('description')),topic:String(form.get('topic')||'Quartier'),members:1,createdBy:true};const next=[group,...groups];setGroups(next);localStorage.setItem('community-groups',JSON.stringify(next));setShowCreate(false)}function deleteGroup(id:string){if(window.confirm('Supprimer ce groupe ?')){const next=groups.filter(g=>g.id!==id);setGroups(next);localStorage.setItem('community-groups',JSON.stringify(next))}}const myGroups=groups.filter(g=>g.createdBy);const otherGroups=[...demoGroups,...groups.filter(g=>!g.createdBy)];const GroupCard=({group}:{group:{id:string;name:string;description:string;topic:string;members:number;createdBy:boolean}})=><article className="group-card"><div className="group-card-head"><Badge tone="green">{group.topic}</Badge>{group.createdBy&&<span className="created-label">Créé par vous</span>}</div><h3>{group.name}</h3><p>{group.description}</p><small><Users size={14}/> {group.members} membre{group.members>1?'s':''}</small><button className="text-link">Rejoindre le groupe <ArrowRight size={14}/></button>{group.createdBy&&<button className="delete-group" onClick={()=>deleteGroup(group.id)}>Supprimer le groupe <X size={14}/></button>}</article>;return <Page><div className="page-intro community-intro"><div><p className="eyebrow">Ensemble, ici</p><h1>La communauté<br/><em>en mouvement.</em></h1><p>Des coups de main, des idées partagées et des espaces pour se rencontrer.</p></div></div><section className="community-groups"><div className="section-heading"><div><p className="eyebrow">Vos espaces</p><h2>Mes groupes</h2></div><button className="button primary" onClick={()=>setShowCreate(true)}><Plus size={15}/> Créer un groupe</button></div>{myGroups.length?<div className="group-grid">{myGroups.map(g=><GroupCard key={g.id} group={g}/>)}</div>:<div className="group-empty">Vous n’avez pas encore créé de groupe.</div>}</section><section className="community-groups"><div className="section-heading"><div><p className="eyebrow">À découvrir</p><h2>Autres groupes</h2></div></div><div className="group-grid">{otherGroups.map(g=><GroupCard key={g.id} group={g}/>)}</div></section><div className="initiative-grid">{initialEvents.filter(e=>e.community||e.category==='Communauté').map(e=><article className="initiative" key={e.id}><div className="initiative-icon">♥</div><Badge tone="green">Ouvert à tous</Badge><h2>{e.title}</h2><p>{e.description}</p><div className="initiative-meta"><span><CalendarDays size={15}/>{e.date}</span><span><MapPin size={15}/>{e.place}</span></div><button className="button secondary">Je veux participer <ArrowRight size={15}/></button></article>)}<article className="initiative warm"><div className="initiative-icon">✦</div><Badge tone="orange">Bénévolat</Badge><h2>Donner un peu, changer beaucoup</h2><p>Découvrez les organismes qui font une différence, un geste à la fois.</p><button className="button dark">Découvrir les organismes <ArrowRight size={15}/></button></article></div>{showCreate&&<div className="overlay" onClick={()=>setShowCreate(false)}><form className="group-form" onSubmit={createGroup} onClick={e=>e.stopPropagation()}><button type="button" className="close-button" onClick={()=>setShowCreate(false)}><X size={18}/></button><p className="eyebrow">Nouvel espace collectif</p><h2>Créer un groupe</h2><input name="name" required placeholder="Nom du groupe"/><input name="topic" placeholder="Thème · Ex. entraide, sport, culture"/><textarea name="description" required placeholder="Décrivez l’objectif du groupe…"/><button className="button primary full">Créer le groupe <ArrowRight size={15}/></button></form></div>}</Page>}
-function MySaintRoch(){const [selected,setSelected]=useState<Interest[]>(()=>JSON.parse(localStorage.getItem('interests')||'[]'));const save=(items:Interest[])=>{setSelected(items);localStorage.setItem('interests',JSON.stringify(items))};const recs=initialEvents.filter(e=>selected.includes('Événements gratuits')&&e.free||selected.some(i=>i.toLowerCase().includes(e.category.toLowerCase().split(' ')[0])));return <Page><div className="personal-head"><div><p className="eyebrow">Votre espace</p><h1>Mon Saint-Roch</h1><p>Composez votre quartier idéal, à votre image.</p></div><div className="personal-icon"><Sparkles/></div></div><section className="interest-box"><SectionTitle eyebrow="01 — Vos intérêts" title="Qu’est-ce qui vous fait vibrer ?"/><p className="muted">Choisissez au moins un intérêt. Vos choix restent enregistrés dans votre navigateur.</p><div className="interest-grid">{interests.map(i=><button key={i} className={selected.includes(i)?'interest selected':'interest'} onClick={()=>save(selected.includes(i)?selected.filter(x=>x!==i):[...selected,i])}>{selected.includes(i)&&<Check size={16}/>} {i}</button>)}</div></section><section className="home-section"><SectionTitle eyebrow="02 — Pour vous" title={selected.length?'Des idées qui vous ressemblent':'Commencez par choisir vos intérêts'}/><div className="event-grid">{(recs.length?recs:initialEvents.slice(0,2)).map(e=><EventCard event={e} key={e.id}/>)}</div></section></Page>}
-function BusinessDashboard(){const [events,setEvents]=useState<EventItem[]>(()=>{const s=localStorage.getItem('demo-events');return s?JSON.parse(s):initialEvents});const [show,setShow]=useState(false);const [title,setTitle]=useState('');const [description,setDescription]=useState('');function create(e:React.FormEvent){e.preventDefault();const next={id:'custom-'+Date.now(),title,description,date:'2026-11-12',time:'18 h',place:'Saint-Roch',category:'Communauté' as Category,price:'Gratuit',organizer:'Ma démo',lat:46.8162,lng:-71.218,free:true,community:true};const all=[...events,next];setEvents(all);localStorage.setItem('demo-events',JSON.stringify(all));setTitle('');setDescription('');setShow(false)}return <Page><DashboardHeader title="Espace partenaire" subtitle="Gérez vos publications locales."/><div className="dashboard-grid"><aside className="dashboard-nav"><div className="demo-role"><span>Mode démonstration</span><b>Commerçant / organisme</b></div><a className="dash-active">Publications</a><a>Ma fiche publique</a><a>Statistiques</a><Link to="/tableau-de-bord/ville">Passer au mode Ville →</Link></aside><div className="dashboard-content"><div className="stats"><div><small>Publications actives</small><b>{events.length}</b></div><div><small>Participations</small><b>48</b></div><div><small>Visibilité ce mois</small><b>1 284</b></div></div><div className="content-title"><div><p className="eyebrow">Mes événements</p><h2>Ce que vous partagez</h2></div><button className="button primary" onClick={()=>setShow(!show)}><Plus size={17}/> Ajouter</button></div>{show&&<form className="create-form" onSubmit={create}><h3>Créer un événement</h3><input required placeholder="Titre de l'événement" value={title} onChange={e=>setTitle(e.target.value)}/><textarea required placeholder="Décrivez votre activité…" value={description} onChange={e=>setDescription(e.target.value)}/><div className="form-actions"><button type="button" className="button ghost" onClick={()=>setShow(false)}>Annuler</button><button className="button primary">Publier l'événement</button></div></form>}<div className="dashboard-events">{events.map(e=><EventCard key={e.id} event={e} onDelete={()=>{const next=events.filter(x=>x.id!==e.id);setEvents(next);localStorage.setItem('demo-events',JSON.stringify(next))}}/>)}</div></div></div></Page>}
-function DashboardHeader({title,subtitle}:{title:string;subtitle:string}){return <div className="dashboard-header"><div><Badge tone="orange">Tableau de bord</Badge><h1>{title}</h1><p>{subtitle}</p></div><div className="profile-chip"><span>SR</span><div><b>Démo locale</b><small>Session active</small></div></div></div>}
-function ReportPage(){const [category,setCategory]=useState<CleanlinessReport['category']>('Graffiti');const [description,setDescription]=useState('');const [address,setAddress]=useState('');const [coords,setCoords]=useState({latitude:46.8162,longitude:-71.218});const [photo,setPhoto]=useState<string>();const [sent,setSent]=useState(false);const [locating,setLocating]=useState(false);function locate(){if(!navigator.geolocation)return;setLocating(true);navigator.geolocation.getCurrentPosition(position=>{setCoords({latitude:position.coords.latitude,longitude:position.coords.longitude});setLocating(false)},()=>setLocating(false),{enableHighAccuracy:true,timeout:10000})}function handlePhoto(e:React.ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>setPhoto(String(reader.result));reader.readAsDataURL(file)}function submit(e:React.FormEvent){e.preventDefault();const report:CleanlinessReport={id:'report-'+Date.now(),category,description,address,latitude:coords.latitude,longitude:coords.longitude,photo,createdAt:new Date().toISOString(),status:'Nouveau'};const reports=JSON.parse(localStorage.getItem('cleanliness-reports')||'[]');localStorage.setItem('cleanliness-reports',JSON.stringify([report,...reports]));setSent(true)}if(sent)return <Page><div className="success-panel"><div className="success-icon"><Check size={30}/></div><p className="eyebrow">Signalement transmis</p><h1>Merci de prendre soin<br/><em>de Saint-Roch.</em></h1><p>La brigade de propreté a reçu votre signalement dans le tableau de suivi. Ceci est une notification locale de démonstration.</p><Link to="/explorer" className="button primary">Retourner à la carte <ArrowRight size={17}/></Link></div></Page>;return <Page><div className="report-layout"><div className="report-intro"><Badge tone="green">Agir ensemble</Badge><h1>Un graffiti ou<br/><em>une saleté ?</em></h1><p>Signalez-le en quelques secondes. Ajoutez une photo et indiquez l’endroit : la brigade de propreté pourra traiter la demande plus rapidement.</p><div className="report-note"><ShieldCheck size={17}/><span>Votre signalement est une donnée de démonstration locale. Aucune information personnelle n’est demandée.</span></div></div><form className="report-form" onSubmit={submit}><h2>Faire un signalement</h2><label>Type de problème<select value={category} onChange={e=>setCategory(e.target.value as CleanlinessReport['category'])}><option>Graffiti</option><option>Saleté</option><option>Dépôt sauvage</option><option>Autre</option></select></label><label>Description<textarea required value={description} onChange={e=>setDescription(e.target.value)} placeholder="Décrivez brièvement ce que vous avez constaté…"/></label><label>Photo <span className="optional">(facultative)</span><input type="file" accept="image/*" onChange={handlePhoto}/></label>{photo&&<img className="report-preview" src={photo} alt="Aperçu du signalement"/>}<label>Adresse ou repère<input required value={address} onChange={e=>setAddress(e.target.value)} placeholder="Ex. près de la rue Saint-Joseph"/></label><div className="location-row"><div><b>Localisation</b><small>{coords.latitude.toFixed(5)}, {coords.longitude.toFixed(5)}</small></div><button type="button" className="button ghost" onClick={locate}><Compass size={16}/>{locating?'Recherche…':'Utiliser ma position'}</button></div><button className="button primary report-submit">Envoyer à la brigade <ArrowRight size={17}/></button></form></div></Page>}
-function MunicipalDashboard(){const [updates,setUpdates]=useState<Update[]>(()=>{const s=localStorage.getItem('demo-updates');return s?JSON.parse(s):initialUpdates});const [show,setShow]=useState(false);const [title,setTitle]=useState('');const reports=JSON.parse(localStorage.getItem('cleanliness-reports')||'[]') as CleanlinessReport[];function create(e:React.FormEvent){e.preventDefault();const n:Update={id:'update-'+Date.now(),title,description:'Publication créée dans le mode démonstration.',type:'Annonce',date:'À venir',status:'Publié',lat:46.8162,lng:-71.218};const all=[n,...updates];setUpdates(all);localStorage.setItem('demo-updates',JSON.stringify(all));setTitle('');setShow(false)}return <Page><DashboardHeader title="Espace municipal" subtitle="Informez et impliquez le quartier."/><div className="dashboard-grid"><aside className="dashboard-nav"><div className="demo-role"><span>Mode démonstration</span><b>Administration municipale</b></div><a className="dash-active">Publications</a><a>Travaux & projets</a><a>Archives</a><Link to="/tableau-de-bord/commerce">Passer au mode partenaire →</Link></aside><div className="dashboard-content">{reports.length>0&&<section className="notification-box"><div><Badge tone="orange">Nouveau</Badge><h2><MapPin size={18}/> {reports.length} signalement{reports.length>1?'s':''} de propreté</h2><p>La brigade de propreté a reçu une notification locale.</p></div><Link to="/signaler" className="text-link">Voir le formulaire <ArrowRight size={14}/></Link></section>}<div className="content-title"><div><p className="eyebrow">Fil d'information</p><h2>Actualités et aménagements</h2></div><button className="button primary" onClick={()=>setShow(!show)}><Plus size={17}/> Nouvelle annonce</button></div>{show&&<form className="create-form" onSubmit={create}><h3>Publier une annonce</h3><input required placeholder="Titre de l'annonce" value={title} onChange={e=>setTitle(e.target.value)}/><div className="form-actions"><button type="button" className="button ghost" onClick={()=>setShow(false)}>Annuler</button><button className="button primary">Publier</button></div></form>}<div className="updates-list">{updates.map(u=><article className="update-row" key={u.id}><span className={`update-icon ${u.type.toLowerCase()}`}>{u.type==='Travaux'?'⚒':u.type==='Projet'?'✦':'!'}</span><div><Badge tone={u.type==='Travaux'?'orange':'blue'}>{u.type}</Badge><h3>{u.title}</h3><p>{u.description}</p><small>{u.date} · {u.status}</small></div><button className="icon-btn" onClick={()=>{const n=updates.filter(x=>x.id!==u.id);setUpdates(n);localStorage.setItem('demo-updates',JSON.stringify(n))}} aria-label="Archiver"><X size={18}/></button></article>)}</div></div></div></Page>}
-function Footer(){return <footer><div className="brand"><span className="brand-mark">✦</span><span>Saint-Roch <b>Connect</b></span></div><span>Prototype de hackathon · Données fictives</span></footer>}
-export default App;
+const MAP_TABS: Tab[] = ['carte', 'trajets', 'parking', 'signaler'];
+
+export default function App() {
+  const profile = useApp((s) => s.profile);
+  const theme = useApp((s) => s.theme);
+  const night = isNight(theme);
+  // Dernier profil choisi : sert de fond pendant l'écran de choix (la carte se prépare derrière)
+  const [lastProfile, setLastProfile] = useState<Profile>(profile ?? 'citoyen');
+  useEffect(() => { if (profile) setLastProfile(profile); }, [profile]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = night ? 'dark' : 'light';
+  }, [night]);
+
+  return (
+    <div className="stage">
+      <aside className="stage-side">
+        <div className="brand-logo"><MapPin size={22} strokeWidth={2.4} /></div>
+        <h1>Notre Saint-Roch</h1>
+        <p>Application mobile pour la revitalisation du quartier Saint-Roch, Québec.</p>
+        <ul>
+          <li><b>1.</b> Déplacements sécuritaires</li>
+          <li><b>2.</b> Stationnement</li>
+          <li><b>3.</b> Événements</li>
+          <li><b>4.</b> Groupes</li>
+          <li><b>5.</b> Entreprises & collaborations</li>
+          <li><b>6.</b> Signalements</li>
+        </ul>
+      </aside>
+      <div className="device">
+        <div className="device-screen">
+          {/* La carte reste montée en permanence : changer de profil ne la recharge pas (style, tuiles, lieux) */}
+          <Shell profile={profile ?? lastProfile} />
+          <AnimatePresence>{!profile && <ProfilePicker key="picker" />}</AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Shell({ profile }: { profile: Profile }) {
+  const tab = useUI((s) => s.tab);
+  const setTab = useUI((s) => s.setTab);
+  const overlays = useUI((s) => s.overlays);
+  const navActive = useUI((s) => s.navActive);
+  const reportPick = useUI((s) => s.reportPick);
+  const pushOverlay = useUI((s) => s.pushOverlay);
+  const tabs = TABS[profile];
+  const isMapTab = MAP_TABS.includes(tab);
+  const me = PROFILES.find((p) => p.id === profile)!;
+
+  // Si l'onglet courant n'est pas dans la barre du profil, il reste accessible via le menu.
+  return (
+    <motion.div className={`shell ${navActive ? 'nav-mode' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+      <MapView>
+        <MapLayers />
+        <CameraTools />
+      </MapView>
+
+      {isMapTab && tab !== 'trajets' && !navActive && (
+        <div className="top-ui">
+          <SearchBar onAvatar={() => pushOverlay({ kind: 'menu' })} avatar={<span className="sb-av" style={{ background: `linear-gradient(135deg, ${me.g[0]}, ${me.g[1]})` }}>{me.icon}</span>} />
+          {tab === 'carte' && <LayerChips />}
+        </div>
+      )}
+      <AnimatePresence>{tab === 'trajets' && <RouteHeader key="rh" />}</AnimatePresence>
+
+      {reportPick && (
+        <div className="crosshair">
+          <motion.div className="crosshair-pin" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            <MapPin size={40} strokeWidth={2.2} fill="#EF4444" color="#fff" />
+          </motion.div>
+          <span className="crosshair-shadow" />
+        </div>
+      )}
+
+      <div className="sheets">
+        <AnimatePresence mode="popLayout">
+          {tab === 'carte' && <ExploreSheet key="explore" />}
+          {tab === 'trajets' && <RouteSheet key="route" />}
+          {tab === 'parking' && <ParkingSheet key="parking" />}
+          {tab === 'signaler' && <ReportSheet key="report" />}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {!isMapTab && (
+          <motion.div key={tab} className="page-layer" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} transition={{ type: 'spring', stiffness: 380, damping: 36 }}>
+            {tab === 'evenements' && <EventsPage />}
+            {tab === 'groupes' && <GroupsPage />}
+            {tab === 'annuaire' && <DirectoryPage />}
+            {tab === 'collabs' && <CollabsPage />}
+            {tab === 'admin' && <AdminPage />}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!navActive && (
+        <nav className="tabbar">
+          {tabs.map((t) => (
+            <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>
+              {tab === t && <motion.span layoutId="tab-pill" className="tab-pill" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
+              <span className="tab-icon">{TAB_META[t].icon}</span>
+              <span className="tab-label">{TAB_META[t].label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
+      <AnimatePresence>
+        {overlays.map((o, i) => {
+          const key = `${o.kind}-${i}`;
+          switch (o.kind) {
+            case 'event': return <EventDetailPage key={key} id={o.id} />;
+            case 'group': return <GroupDetailPage key={key} id={o.id} />;
+            case 'annonce': return <AnnoncePage key={key} id={o.id} />;
+            case 'chat': return <ChatPage key={key} proposalId={o.proposalId} />;
+            case 'place': return <PlacePage key={key} id={o.id} />;
+            case 'publish-event': return <PublishEventModal key={key} />;
+            case 'new-annonce': return <NewAnnonceModal key={key} />;
+            case 'propose': return <ProposeModal key={key} annonceId={o.annonceId} />;
+            case 'menu': return <Menu key={key} profile={profile} />;
+            default: return null;
+          }
+        })}
+      </AnimatePresence>
+      <Toast />
+    </motion.div>
+  );
+}
+
+function LayerChips() {
+  const layers = useUI((s) => s.layers);
+  const toggle = useUI((s) => s.toggleLayer);
+  const items: { k: keyof typeof layers; label: string; icon: ReactNode; color: string }[] = [
+    { k: 'parkings', label: 'Stationnements', icon: <b className="chip-p">P</b>, color: '#2563EB' },
+    { k: 'events', label: 'Événements', icon: <CalendarDays size={14} />, color: '#E11D48' },
+    { k: 'places', label: 'Lieux', icon: <Store size={14} />, color: '#F97316' },
+    { k: 'stops', label: 'Bus', icon: <Bus size={14} />, color: '#1D4ED8' },
+    { k: 'reports', label: 'Signalements', icon: <TriangleAlert size={14} />, color: '#EF4444' },
+    { k: 'lighting', label: 'Éclairage', icon: <Lightbulb size={14} />, color: '#EAB308' },
+  ];
+  return (
+    <motion.div className="layer-chips" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+      {items.map((it) => (
+        <button key={it.k} className={`map-chip ${layers[it.k] ? 'on' : ''}`} style={{ ['--c' as string]: it.color }} onClick={() => toggle(it.k)}>
+          {it.icon}{it.label}
+        </button>
+      ))}
+    </motion.div>
+  );
+}
+
+function CameraTools() {
+  const { map } = useMap();
+  const tab = useUI((s) => s.tab);
+  const navActive = useUI((s) => s.navActive);
+  const theme = useApp((s) => s.theme);
+  const setTheme = useApp((s) => s.setTheme);
+  const [bearingDeg, setBearing] = useState(map?.getBearing() ?? 0);
+  const [pitch, setPitch] = useState(map?.getPitch() ?? 0);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!map) return;
+    const h = () => { setBearing(map.getBearing()); setPitch(map.getPitch()); };
+    map.on('rotate', h);
+    map.on('pitch', h);
+    return () => { map.off('rotate', h); map.off('pitch', h); };
+  }, [map]);
+  if (!map || !MAP_TABS.includes(tab) || navActive) return null;
+  const top = tab === 'trajets' ? 152 : tab === 'carte' ? 128 : 84;
+  return (
+    <div className="fab-col" style={{ top }}>
+      <button className="fab" onClick={() => setOpen(!open)} aria-label="Style de carte"><Layers size={19} /></button>
+      <AnimatePresence>
+        {open && (
+          <motion.div className="fab-pop" initial={{ opacity: 0, scale: 0.9, x: 10 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+            {([['auto', <SunMoon size={16} key="a" />, 'Auto'], ['jour', <Sun size={16} key="j" />, 'Jour'], ['nuit', <Moon size={16} key="n" />, 'Nuit']] as const).map(([v, ic, l]) => (
+              <button key={v} className={theme === v ? 'on' : ''} onClick={() => { setTheme(v); setOpen(false); }}>{ic}{l}</button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <button className={`fab ${pitch > 10 ? 'on' : ''}`} onClick={() => map.easeTo({ pitch: pitch > 10 ? 0 : 55, duration: 800 })} aria-label="3D"><Box size={19} /></button>
+      <button className="fab" onClick={() => map.easeTo({ bearing: Math.abs(bearingDeg) < 1 ? -GRID_ANGLE : 0, duration: 700 })} aria-label="Boussole">
+        <Compass size={19} style={{ transform: `rotate(${-bearingDeg - 45}deg)`, transition: 'transform .2s' }} />
+      </button>
+      <button className="fab primary" onClick={() => map.flyTo({ center: ME, zoom: 16.6, duration: 1200, offset: [0, -100] })} aria-label="Ma position"><LocateFixed size={19} /></button>
+    </div>
+  );
+}
+
+function Menu({ profile }: { profile: Profile }) {
+  const pop = useUI((s) => s.popOverlay);
+  const setProfile = useApp((s) => s.setProfile);
+  const theme = useApp((s) => s.theme);
+  const setTheme = useApp((s) => s.setTheme);
+  const reset = useApp((s) => s.resetAll);
+  const me = PROFILES.find((p) => p.id === profile)!;
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={pop}>
+      <motion.div className="menu" initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'spring', stiffness: 380, damping: 40 }} onClick={(e) => e.stopPropagation()}>
+        <div className="menu-head" style={{ background: `linear-gradient(135deg, ${me.g[0]}, ${me.g[1]})` }}>
+          <button className="icon-btn glass-btn menu-close" onClick={pop}><X size={18} /></button>
+          <span className="menu-avatar">{me.icon}</span>
+          <b>Profil {me.title}</b>
+          <small>{me.text}</small>
+        </div>
+        <div className="menu-body">
+          <h4 className="mini-title">Apparence de la carte</h4>
+          <div className="theme-row">
+            {([['auto', 'Auto'], ['jour', 'Jour'], ['nuit', 'Nuit']] as const).map(([v, l]) => <button key={v} className={theme === v ? 'on' : ''} onClick={() => setTheme(v)}>{l}</button>)}
+          </div>
+          <h4 className="mini-title">Compte</h4>
+          <button className="menu-item" onClick={() => { pop(); setProfile(null); }}><span className="mi-icon"><LogOut size={20} /></span><span>Changer de profil</span></button>
+          <button className="menu-item" onClick={() => { if (confirm('Effacer toutes les données locales (favoris, signalements, messages) ?')) { reset(); pop(); } }}><span className="mi-icon"><RefreshCw size={20} /></span><span>Réinitialiser la démo</span></button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}

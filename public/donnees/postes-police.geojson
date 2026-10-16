@@ -1,0 +1,24 @@
+{
+	"type": "FeatureCollection",
+	"name": "PostesPolice",
+	"features": [
+		{
+			"type": "Feature",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-71.2867,
+					46.8437
+				]
+			},
+			"properties": {
+				"NOM": "Sûreté du Québec, Autoroutier de Québec",
+				"ADRESSE": "5005 boul. Pierre-Bertrand, Québec (Québec) G2K 1M1",
+				"RESPONSABLE": "Johanne Beausoleil",
+				"TELEPHONE": "418 623-6249",
+				"HORAIRE": "24/7",
+				"POSITION": "approximative"
+			}
+		}
+	]
+}

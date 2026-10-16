@@ -1,0 +1,126 @@
+{
+	"type" : "FeatureCollection",
+	"name" : "StationnementsMunicipauxHorsRues",
+	"features" : [
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2308407805, 46.8163523002 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Centrale de Police",
+				"ADRESSE_À_PROXIMITÉ" : "275 rue de la Maréchaussée",
+				"NOMBRE_DE_CASES" : 217,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2225517833, 46.8185128176 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Édifice F.X. Drolet",
+				"ADRESSE_À_PROXIMITÉ" : "245 rue du Pont",
+				"NOMBRE_DE_CASES" : 79,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2262319722, 46.8141239412 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Place Jacques-Cartier",
+				"ADRESSE_À_PROXIMITÉ" : "320 rue Saint-Joseph Est",
+				"NOMBRE_DE_CASES" : 103,
+				"TYPE_INT_EXT" : "Intérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2230319882, 46.8177795117 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Centre récréatif Saint-Roch",
+				"ADRESSE_À_PROXIMITÉ" : "230 rue du Pont",
+				"NOMBRE_DE_CASES" : 89,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2356764869, 46.8214803276 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement de la Pointe-aux-Lièvres",
+				"ADRESSE_À_PROXIMITÉ" : "51 rue de la Pointe-aux-Lièvres",
+				"NOMBRE_DE_CASES" : 155,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2227800285, 46.8154803634 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement de la Chancelière",
+				"ADRESSE_À_PROXIMITÉ" : "575 rue du Roi",
+				"NOMBRE_DE_CASES" : 168,
+				"TYPE_INT_EXT" : "Intérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2322472945, 46.8183601381 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Parc Victoria",
+				"ADRESSE_À_PROXIMITÉ" : "275 rue de la Maréchaussée",
+				"NOMBRE_DE_CASES" : 450,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ -71.2206070567, 46.818456862 ]
+			},
+			"properties" : {
+				"ARRONDISSEMENT" : "1",
+				"QUARTIER" : "Saint-Roch",
+				"NOM" : "Stationnement Place la Rivière",
+				"ADRESSE_À_PROXIMITÉ" : "À l'est du 880 rue du Prince-Édouard",
+				"NOMBRE_DE_CASES" : 46,
+				"TYPE_INT_EXT" : "Extérieur"
+			}
+		}
+	]
+}
