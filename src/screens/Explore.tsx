@@ -58,7 +58,7 @@ export function ExploreSheet() {
 
         <button className={`lighting-card ${lighting ? 'on' : ''}`} onClick={() => toggleLayer('lighting')}>
           <span className="lc-icon"><Lightbulb size={20} /></span>
-          <span><b>Carte de l’éclairage</b><small>{lighting ? 'Affichée — touchez pour masquer' : 'Voir les rues les mieux éclairées'}</small></span>
+          <span><b>Carte de l’éclairage</b><small>{lighting ? 'Affichée. Touchez pour masquer' : 'Voir les rues les mieux éclairées'}</small></span>
           <span className={`switch ${lighting ? 'on' : ''}`}><span /></span>
         </button>
 
